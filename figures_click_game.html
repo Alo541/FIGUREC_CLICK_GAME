@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Собирай фигуры — игра на время</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#050505;color:#fff;font-family:Georgia,"Times New Roman",serif}
+.app{width:min(100%,520px);padding:22px 18px 28px;text-align:center}
+h1{font-size:20px;margin:0 0 14px;text-shadow:0 0 10px #fff5}
+.controls{display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:16px}
+input{width:160px;border:0;border-radius:22px;padding:9px 13px;outline:none;background:#fff;color:#333;box-shadow:0 0 12px #fff9;text-align:center;font-family:inherit}
+button{border:0;border-radius:22px;background:#4d8c2f;color:#fff;padding:8px 22px;font-weight:bold;cursor:pointer;font-size:13px}
+button:hover{background:#63a83d}
+.status{font-weight:bold;margin:0 0 12px;min-height:20px}
+.board{position:relative;width:min(76vw,330px);height:min(76vw,330px);min-width:250px;min-height:250px;margin:0 auto;border-radius:22px;background:#252323;box-shadow:0 0 20px 5px #bcbcbc66;overflow:hidden;touch-action:none;border:1px solid #4a4848}
+.target{position:absolute;cursor:pointer;filter:drop-shadow(0 0 7px currentColor);user-select:none;touch-action:manipulation;animation:pop .18s ease-out}
+@keyframes pop{from{transform:scale(.3)}to{transform:scale(1)}}
+.help{color:#bbb;font:13px Arial,sans-serif;line-height:1.5;margin-top:18px}
+.overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:#000b;padding:24px;font:bold 22px Arial,sans-serif;white-space:pre-line;line-height:1.6}
+.overlay.show{display:flex}
+</style>
+</head>
+<body>
+<main class="app">
+<h1>НАЖИМАЙТЕ НА ФИГУРЫ</h1>
+<div class="controls">
+<input id="duration" type="number" min="5" max="300" value="30" placeholder="Время в секундах" aria-label="Время в секундах">
+<button id="start">START</button>
+</div>
+<div class="status" id="time">Осталось: 30</div>
+<div class="status" id="score">Счёт: 0</div>
+<div class="board" id="board"><div class="overlay" id="overlay"></div></div>
+<div class="help">Нажимай на появляющиеся фигуры, чтобы набирать очки.<br>Круги дают +1, редкие золотые звёзды — +5. Не дай времени закончиться!</div>
+</main>
+<script>
+(() => {
+const board=document.getElementById('board'), durationInput=document.getElementById('duration');
+const startBtn=document.getElementById('start'), timeLabel=document.getElementById('time');
+const scoreLabel=document.getElementById('score'), overlay=document.getElementById('overlay');
+let running=false,timeLeft=30,score=0,timer=null,spawnTimer=null,removeTimer=null;
+function clearTargets(){board.querySelectorAll('.target').forEach(el=>el.remove());}
+function endGame(){
+  running=false;clearInterval(timer);clearTimeout(spawnTimer);clearTimeout(removeTimer);
+  clearTargets();overlay.textContent='ВРЕМЯ ВЫШЛО!\nТвой счёт: '+score;overlay.classList.add('show');
+  startBtn.textContent='ИГРАТЬ СНОВА';
+}
+function spawnTarget(){
+  if(!running)return;
+  const old=board.querySelector('.target');if(old)old.remove();
+  const gold=Math.random()<0.13,shape=gold?'star':(['circle','square','triangle'][Math.floor(Math.random()*3)]);
+  const el=document.createElement('div');el.className='target';
+  const s=gold?31:26+Math.random()*9;
+  Object.assign(el.style,{width:s+'px',height:s+'px',left:(8+Math.random()*(board.clientWidth-s-16))+'px',top:(8+Math.random()*(board.clientHeight-s-16))+'px'});
+  if(shape==='circle'){
+    el.style.borderRadius='50%';el.style.background='#5ce1e6';el.style.color='#5ce1e6';
+  }else if(shape==='square'){
+    el.style.background='#ff6262';el.style.color='#ff6262';el.style.borderRadius='4px';
+  }else if(shape==='triangle'){
+    el.style.width='0';el.style.height='0';el.style.borderLeft='15px solid transparent';el.style.borderRight='15px solid transparent';el.style.borderBottom='29px solid #bd75ff';el.style.filter='drop-shadow(0 0 7px #bd75ff)';
+  }else{
+    el.textContent='★';el.style.width=s+'px';el.style.height=s+'px';el.style.color='#ffd84a';el.style.fontSize='32px';el.style.lineHeight='32px';el.style.filter='drop-shadow(0 0 9px #ffd84a)';
+  }
+  el.setAttribute('aria-label',gold?'Звезда, пять очков':'Фигура, одно очко');
+  el.addEventListener('pointerdown',e=>{
+    e.preventDefault();if(!running)return;
+    score+=gold?5:1;scoreLabel.textContent='Счёт: '+score;
+    const pop=document.createElement('span');pop.textContent=gold?'+5':' +1';
+    Object.assign(pop.style,{position:'absolute',left:el.style.left,top:el.style.top,color:gold?'#ffd84a':'#fff',font:'bold 18px Arial',pointerEvents:'none',textShadow:'0 0 8px #fff'});
+    board.appendChild(pop);setTimeout(()=>pop.remove(),400);el.remove();
+    clearTimeout(spawnTimer);spawnTimer=setTimeout(spawnTarget,220);
+  });
+  board.appendChild(el);
+  // If a target is missed, it moves to a new position after a short delay.
+  clearTimeout(spawnTimer);spawnTimer=setTimeout(spawnTarget,1150);
+}
+function startGame(){
+ const v=Number(durationInput.value);
+ if(!Number.isFinite(v)||v<5||v>300){alert('Укажите время от 5 до 300 секунд.');return;}
+ clearInterval(timer);clearTimeout(spawnTimer);clearTargets();overlay.classList.remove('show');
+ timeLeft=Math.floor(v);score=0;running=true;
+ timeLabel.textContent='Осталось: '+timeLeft;scoreLabel.textContent='Счёт: 0';startBtn.textContent='ИГРА ИДЁТ';
+ spawnTarget();
+ timer=setInterval(()=>{if(!running)return;timeLeft--;timeLabel.textContent='Осталось: '+timeLeft;if(timeLeft<=0)endGame();},1000);
+}
+startBtn.addEventListener('click',startGame);
+})();
+</script>
+</body>
+</html>
